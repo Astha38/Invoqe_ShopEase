@@ -21,7 +21,7 @@ if (Test-Path $hba18) {
     & $psql18 -p 5432 -U postgres -d shopease -f $schemaPath
     & $psql18 -p 5432 -U postgres -d shopease -f $seedPath
 
-    (Get-Content $hba18 -Raw) -replace "trust", "scram-sha-256" | Set-Content $hba18 -Encoding utf8
+    Copy-Item "$hba18.bak" $hba18 -Force
     Restart-Service postgresql-x64-18 -Force
     Write-Host "PostgreSQL 18 configured successfully!" -ForegroundColor Green
 }
@@ -41,7 +41,7 @@ if (Test-Path $hba14) {
     & $psql14 -p 5433 -U postgres -d shopease -f $schemaPath
     & $psql14 -p 5433 -U postgres -d shopease -f $seedPath
     
-    (Get-Content $hba14 -Raw) -replace "trust", "scram-sha-256" | Set-Content $hba14 -Encoding utf8
+    Copy-Item "$hba14.bak" $hba14 -Force
     Restart-Service postgresql-x64-14 -Force
     Write-Host "PostgreSQL 14 configured successfully!" -ForegroundColor Green
 }

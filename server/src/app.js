@@ -12,4 +12,11 @@ app.use("/api/categories", require("./routes/categories"));
 app.use("/api/cart", require("./routes/cart"));
 app.use("/api/orders", require("./routes/orders"));
 
+app.use((req, res) => res.status(404).json({ message: "Route not found" }));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ message: "Server error" });
+});
+
 module.exports = app;
