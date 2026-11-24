@@ -14,7 +14,7 @@ exports.register = async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
       `INSERT INTO users (email, password_hash, name, address)
-       VALUES ($1, $2, $3, $4) RETURNING id, email, name, address`,
+       VALUES ($1, $2, $3, $4) RETURNING id, email, name, address, role`,
       [email.toLowerCase(), hash, name, address || null]
     );
     const user = rows[0];
@@ -40,7 +40,7 @@ exports.login = async (req, res) => {
     const ok = user && (await bcrypt.compare(password, user.password_hash));
     if (!ok) return res.status(401).json({ message: "Invalid email or password" });
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, address: user.address },
+      user: { id: user.id, email: user.email, name: user.name, address: user.address, role: user.role },
       token: makeToken(user),
     });
   } catch (err) {
@@ -51,7 +51,7 @@ exports.login = async (req, res) => {
 
 exports.me = async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT id, email, name, address FROM users WHERE id = $1",
+    "SELECT id, email, name, address, role FROM users WHERE id = $1",
     [req.userId]
   );
   res.json(rows[0]);

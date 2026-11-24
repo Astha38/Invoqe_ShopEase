@@ -1,9 +1,16 @@
 const pool = require("../config/db");
+const { calculateOrderPricing } = require("../utils/pricing");
 
 const fail = (status, message) => {
   const e = new Error(message);
   e.status = status;
   return e;
+};
+
+const makePaymentReference = (method) => {
+  if (method === "cod") return "COD";
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `PAY-${method.toUpperCase()}-${rand}`;
 };
 
 exports.checkout = async (req, res) => {
@@ -29,7 +36,9 @@ exports.checkout = async (req, res) => {
       const u = await client.query("SELECT address FROM users WHERE id = $1", [req.userId]);
       address = u.rows[0]?.address;
     }
-    if (!address) throw fail(400, "A shipping address is required");
+    if (!address || !String(address).trim()) {
+      throw fail(400, "A shipping address is required");
+    }
 
     for (const it of items) {
       if (!it.is_active || it.quantity > it.stock_quantity) {
@@ -37,12 +46,65 @@ exports.checkout = async (req, res) => {
       }
     }
 
-    const total = items.reduce((s, it) => s + Number(it.price) * it.quantity, 0);
+    const rawSubtotal = items.reduce((s, it) => s + Number(it.price) * it.quantity, 0);
+
+    let coupon = null;
+    const rawCode = String(req.body.couponCode || "").trim().toUpperCase();
+    if (rawCode) {
+      const couponRes = await client.query(
+        "SELECT * FROM coupons WHERE UPPER(code) = $1 AND is_active = true",
+        [rawCode]
+      );
+      coupon = couponRes.rows[0];
+      if (!coupon) throw fail(400, `Coupon "${rawCode}" is invalid or expired`);
+    }
+
+    const pricing = calculateOrderPricing(rawSubtotal, coupon);
+
+    const paymentMethod = String(req.body.paymentMethod || "cod").toLowerCase();
+    if (!["cod", "upi", "card"].includes(paymentMethod)) {
+      throw fail(400, "Invalid payment method");
+    }
+
+    const paymentDetails = req.body.paymentDetails || {};
+    if (paymentMethod === "upi" && !String(paymentDetails.upiId || "").includes("@")) {
+      throw fail(400, "Please enter a valid UPI ID (e.g., name@upi)");
+    }
+    if (paymentMethod === "card") {
+      const digits = String(paymentDetails.cardNumber || "").replace(/\s+/g, "");
+      if (digits.length < 12) {
+        throw fail(400, "Please enter a valid card number");
+      }
+    }
+
+    const isOnlinePaid = paymentMethod === "upi" || paymentMethod === "card";
+    const orderStatus = isOnlinePaid ? "paid" : "pending";
+    const paymentStatus = isOnlinePaid ? "paid" : "pending";
+    const paymentReference = makePaymentReference(paymentMethod);
+
     const { rows } = await client.query(
-      `INSERT INTO orders (user_id, total_amount, shipping_address)
-       VALUES ($1, $2, $3)
-       RETURNING id, total_amount, status, shipping_address, created_at`,
-      [req.userId, Math.round(total * 100) / 100, address]
+      `INSERT INTO orders (
+         user_id, subtotal_amount, discount_amount, shipping_fee, total_amount,
+         coupon_code, payment_method, payment_status, payment_reference,
+         shipping_address, status
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, subtotal_amount, discount_amount, shipping_fee, total_amount,
+                 coupon_code, payment_method, payment_status, payment_reference,
+                 tracking_number, status, shipping_address, created_at`,
+      [
+        req.userId,
+        pricing.subtotal,
+        pricing.discount,
+        pricing.shippingFee,
+        pricing.finalTotal,
+        coupon ? coupon.code : null,
+        paymentMethod,
+        paymentStatus,
+        paymentReference,
+        String(address).trim(),
+        orderStatus,
+      ]
     );
     const order = rows[0];
 
@@ -76,7 +138,9 @@ exports.checkout = async (req, res) => {
 };
 
 const orderQuery = (byId) => `
-  SELECT o.id, o.total_amount, o.status, o.shipping_address, o.created_at,
+  SELECT o.id, o.subtotal_amount, o.discount_amount, o.shipping_fee, o.total_amount,
+         o.coupon_code, o.payment_method, o.payment_status, o.payment_reference,
+         o.tracking_number, o.status, o.shipping_address, o.created_at,
          COALESCE(json_agg(json_build_object(
            'product_id', oi.product_id, 'name', p.name,
            'quantity', oi.quantity, 'price', oi.price_at_purchase

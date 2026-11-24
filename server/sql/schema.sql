@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS order_items, orders, cart_items, carts, products, categories, users CASCADE;
+DROP TABLE IF EXISTS order_items, orders, cart_items, carts, coupons, products, categories, users CASCADE;
 
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -6,6 +6,7 @@ CREATE TABLE users (
   password_hash TEXT NOT NULL,
   name VARCHAR(100) NOT NULL,
   address TEXT,
+  role VARCHAR(20) NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
   created_at TIMESTAMP DEFAULT now(),
   updated_at TIMESTAMP DEFAULT now()
 );
@@ -45,10 +46,31 @@ CREATE TABLE cart_items (
   UNIQUE (cart_id, product_id)
 );
 
+CREATE TABLE coupons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT,
+  discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percent', 'fixed', 'shipping')),
+  discount_value DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
+  min_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (min_order_amount >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP DEFAULT now()
+);
+
 CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
+  subtotal_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+  shipping_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
   total_amount DECIMAL(10,2) NOT NULL,
+  coupon_code VARCHAR(50),
+  payment_method VARCHAR(30) NOT NULL DEFAULT 'cod'
+    CHECK (payment_method IN ('cod', 'upi', 'card')),
+  payment_status VARCHAR(20) NOT NULL DEFAULT 'pending'
+    CHECK (payment_status IN ('pending', 'paid', 'failed')),
+  payment_reference VARCHAR(100),
+  tracking_number VARCHAR(50),
   shipping_address TEXT NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','paid','shipped','delivered','cancelled')),

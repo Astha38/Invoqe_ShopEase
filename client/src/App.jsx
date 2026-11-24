@@ -1,45 +1,42 @@
-import { Routes, Route, Link, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import Products from "./pages/Products";
 import ProductDetail from "./pages/ProductDetail";
 import AuthPage from "./pages/AuthPage";
 import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
+import Favorites from "./pages/Favorites";
+import Admin from "./pages/Admin";
+
+function PrivateRoute({ children }) {
+  const { user } = useAuth();
+  return user ? children : <Navigate to="/login" replace />;
+}
 
 export default function App() {
-  const { user, logout } = useAuth();
-  const Private = ({ children }) => (user ? children : <Navigate to="/login" />);
-
   return (
-    <>
-      <nav className="nav">
-        <Link to="/" className="brand">ShopEase</Link>
-        <div className="nav-links">
-          {user ? (
-            <>
-              <Link to="/cart">Cart</Link>
-              <Link to="/orders">My Orders</Link>
-              <span>Hi, {user.name}</span>
-              <button onClick={logout}>Logout</button>
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link to="/register">Register</Link>
-            </>
-          )}
-        </div>
-      </nav>
-      <main className="container">
+    <div className="app-layout">
+      {/* Clean Modern Navbar */}
+      <Navbar />
+
+      {/* Main Content Area */}
+      <main className="main-content">
         <Routes>
           <Route path="/" element={<Products />} />
+          <Route path="/favorites" element={<Favorites />} />
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/cart" element={<Private><Cart /></Private>} />
-          <Route path="/orders" element={<Private><Orders /></Private>} />
+          <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
+          <Route path="/orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </main>
-    </>
+
+      {/* High-End Clean Footer */}
+      <Footer />
+    </div>
   );
 }

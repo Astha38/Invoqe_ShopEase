@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev": "concurrently -n \"DB,SERVER,CLIENT\" -c \"magenta,blue,green\" \"npm run dev:db\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:db": "node scripts/db.js",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
-    "build:client": "npm run build --prefix client"
+    "build:client": "npm run build --prefix client",
+    "db:view": "node scripts/view_db.js",
+    "db:cli": "\"C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe\" -h 127.0.0.1 -p 5434 -U postgres -d shopease"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
